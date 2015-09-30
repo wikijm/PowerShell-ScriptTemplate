@@ -66,7 +66,7 @@ $global:streamWriter = New-Object System.IO.StreamWriter $logPathName
 
 . $loggingFunctions
 . $utilsFunctions
-. $
+
 #----------------------------------------------------------[Execution]----------------------------------------------------------
 
 Start-Log -scriptName $scriptName -scriptVersion $scriptVersion -streamWriter $global:streamWriter
