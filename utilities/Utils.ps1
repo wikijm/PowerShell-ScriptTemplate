@@ -45,6 +45,31 @@ function CreateDirectoryIfNeeded ( [string] $directory ) {
 	}
 }
 
+function Select-FileDialog
+{
+	param ([string]$Title, [string]$Filter = "All files *.*|*.*")
+	[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
+	$fileDialogBox = New-Object Windows.Forms.OpenFileDialog
+	$fileDialogBox.ShowHelp = $false
+	$fileDialogBox.initialDirectory = $ScriptDir
+	$fileDialogBox.filter = $Filter
+	$fileDialogBox.Title = $Title
+	$Show = $fileDialogBox.ShowDialog()
+	
+	If ($Show -eq "OK")
+	{
+		Return $fileDialogBox.FileName
+	}
+	Else
+	{
+		Write-Error "Canceled operation"
+		[System.Windows.Forms.MessageBox]::Show("Script is not able to continue. Operation stopped.", "Operation canceled", 0, [Windows.Forms.MessageBoxIcon]::Error)
+		Stop-TranscriptOnLog
+		Exit
+	}
+	
+}
+
 function Run-WmiRemoteProcess {
     Param(
         [string]$computername=$env:COMPUTERNAME,
