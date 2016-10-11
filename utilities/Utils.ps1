@@ -140,3 +140,11 @@ function Test-LocalAdminRights {
     Write-Host "RWMC runs with user " -nonewline; Write-Host $myUser.Name -f Red -nonewline; Write-Host $adminMessage -nonewline; Write-Host $myComputer -f Red -nonewline; Write-Host " computer"
     return $adminFlag
 }
+
+function Import-SomeModules {
+    $PrerequisitesModules = @("DnsShell","ActiveDirectory")
+    Foreach ($Module in $PrerequisitesModules){
+    If (!(Get-module $Module )){
+        Import-Module $Module
+    }
+}
