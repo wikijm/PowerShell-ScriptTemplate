@@ -1,4 +1,5 @@
-﻿Function Start-Log {    
+$scriptVersion = "0.1"
+ Function Start-Log {    
     [CmdletBinding()]  
     Param ([Parameter(Mandatory=$true)][string]$scriptName, [Parameter(Mandatory=$true)][string]$scriptVersion, 
         [Parameter(Mandatory=$true)][string]$streamWriter)
