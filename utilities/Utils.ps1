@@ -1,12 +1,24 @@
 ﻿function OnApplicationLoad {
 	return $true #return true for success or false for failure
                            }
-function OnApplicationExit {
+function script:OnApplicationExit {
 	$script:ExitCode = 0 #Set the exit code for the Packager
                            }
 
-function Set-RegistryKey($computername, $parentKey, $nameRegistryKey, $valueRegistryKey) {
-    try{    
+function Set-RegistryKey {
+    
+  [CmdletBinding()]
+  param
+  (
+    [Object]$computername,
+
+    [Object]$parentKey,
+
+    [Object]$nameRegistryKey,
+
+    [Object]$valueRegistryKey
+  )
+try{    
         $remoteBaseKeyObject = [microsoft.win32.registrykey]::OpenRemoteBaseKey('LocalMachine',$computername)     
         $regKey = $remoteBaseKeyObject.OpenSubKey($parentKey,$true)
         $regKey.Setvalue("$nameRegistryKey", "$valueRegistryKey", [Microsoft.Win32.RegistryValueKind]::DWORD) 
@@ -17,38 +29,52 @@ function Set-RegistryKey($computername, $parentKey, $nameRegistryKey, $valueRegi
     }
 }
 
-function Disable-UAC($computername) {
-    $parentKey = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
-    $nameRegistryKey = "LocalAccountTokenFilterPolicy"
-    $valueRegistryKey = "1"
+function Disable-UAC {
+    
+  [CmdletBinding()]
+  param
+  (
+    [Object]$computername
+  )
+$parentKey = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System'
+    $nameRegistryKey = 'LocalAccountTokenFilterPolicy'
+    $valueRegistryKey = '1'
 
     $objReg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $computername)
     $objRegKey= $objReg.OpenSubKey($parentKey)
     $test = $objRegkey.GetValue($nameRegistryKey)
     if($test -eq $null){    
         Set-RegistryKey $computername $parentKey $nameRegistryKey $valueRegistryKey     
-        Write-Host "Registry key setted, you have to reboot the remote computer" -foregroundcolor "magenta"
+        Write-Verbose -Message 'Registry key setted, you have to reboot the remote computer'
         Stop-Script
     }
     else {
         if($test -ne 1){
             Set-RegistryKey $computername $parentKey $nameRegistryKey $valueRegistryKey     
-            Write-Host "Registry key setted, you have to reboot the remote computer" -foregroundcolor "magenta"
+            Write-Verbose -Message 'Registry key setted, you have to reboot the remote computer'
             Stop-Script
         }
     }
 }
 
-function CreateDirectoryIfNeeded ( [string] $directory ) {
-	if (!(Test-Path -Path $directory -type "Container")) {
-		New-Item -type directory -Path $directory > $null
+function script:CreateDirectoryIfNeeded {
+	
+  [CmdletBinding()]
+  param
+  (
+    [string]
+    $directory
+  )
+if (!(Test-Path -Path $directory -PathType 'Container')) {
+		New-Item -ItemType directory -Path $directory > $null
 	}
 }
 
 function Select-FileDialog
 {
-	param ([string]$Title, [string]$Filter = "All files *.*|*.*")
-	[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
+	[CmdletBinding()]
+ param ([string]$Title, [string]$Filter = 'All files *.*|*.*')
+	$null = Add-Type -AssemblyName System.Windows.Forms
 	$fileDialogBox = New-Object Windows.Forms.OpenFileDialog
 	$fileDialogBox.ShowHelp = $false
 	$fileDialogBox.initialDirectory = $ScriptDir
@@ -56,28 +82,29 @@ function Select-FileDialog
 	$fileDialogBox.Title = $Title
 	$Show = $fileDialogBox.ShowDialog()
 	
-	If ($Show -eq "OK")
+	If ($Show -eq 'OK')
 	{
 		Return $fileDialogBox.FileName
 	}
 	Else
 	{
-		Write-Error "Canceled operation"
-		[System.Windows.Forms.MessageBox]::Show("Script is not able to continue. Operation stopped.", "Operation canceled", 0, [Windows.Forms.MessageBoxIcon]::Error)
+		Write-Error 'Canceled operation'
+		[Windows.Forms.MessageBox]::Show('Script is not able to continue. Operation stopped.', 'Operation canceled', 0, [Windows.Forms.MessageBoxIcon]::Error)
 		Stop-TranscriptOnLog
 		Exit
 	}
 	
 }
 
-function Run-WmiRemoteProcess {
+function Start-WmiRemoteProcess {
+    [CmdletBinding()]
     Param(
         [string]$computername=$env:COMPUTERNAME,
-        [string]$cmd=$(Throw "You must enter the full path to the command which will create the process."),
+        [string]$cmd=$(Throw 'You must enter the full path to the command which will create the process.'),
         [int]$timeout = 0
     )
  
-    Write-Host "Process to create on $computername is $cmd"
+    Write-Verbose -Message "Process to create on $computername is $cmd"
     [wmiclass]$wmi="\\$computername\root\cimv2:win32_process"
     # Exit if the object didn't get created
     if (!$wmi) {return}
@@ -90,20 +117,20 @@ function Run-WmiRemoteProcess {
     }
     $test =$remote.returnvalue
     if ($remote.returnvalue -eq 0) {
-        Write-Host ("Successfully launched $cmd on $computername with a process id of " + $remote.processid)
+        Write-Verbose -Message ("Successfully launched $cmd on $computername with a process id of " + $remote.processid)
     } else {
-        Write-Host ("Failed to launch $cmd on $computername. ReturnValue is " + $remote.ReturnValue)
+        Write-Verbose -Message ("Failed to launch $cmd on $computername. ReturnValue is " + $remote.ReturnValue)
     }    
     return
 }
 
 function Stop-Script () {   
     Begin{
-        Write-Log -streamWriter $global:streamWriter -infoToLog "--- Script terminating ---"
+        Write-Log -streamWriter $global:streamWriter -infoToLog '--- Script terminating ---'
     }
     Process{        
-        "Script terminating..." 
-        Write-Host "================================================================================================"
+        'Script terminating...' 
+        Write-Verbose -Message '================================================================================================'
         End-Log -streamWriter $global:streamWriter       
         Exit
     }
@@ -111,38 +138,39 @@ function Stop-Script () {
 
 Function Stop-ScriptMessageBox () {
  # MessageBox who inform of the end of the process
-   [System.Windows.Forms.MessageBox]::Show(
+   Add-Type -AssemblyName System.Windows.Forms
+[Windows.Forms.MessageBox]::Show(
 "Process done.
 The log file will be opened when click on 'OK' button.
 Please, check the log file for further informations.
-" , "End of process" , 0, [Windows.Forms.MessageBoxIcon]::Information)
+" , 'End of process' , 0, [Windows.Forms.MessageBoxIcon]::Information)
 }
 
 function Test-InternetConnection {
     if(![Activator]::CreateInstance([Type]::GetTypeFromCLSID([Guid]'{DCB00C01-570F-4A9B-8D69-199FDBA5723B}')).IsConnectedToInternet){
-        Write-Host "The script need an Internet Connection to run" -f Red    
+        Write-Verbose -Message 'The script need an Internet Connection to run'    
         Stop-Script
     }
 }
 
 function Test-LocalAdminRights {
     $myComputer = Get-WMIObject Win32_ComputerSystem | Select-Object -ExpandProperty name
-    $myUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $myUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $amIAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent())
-    $adminFlag = $amIAdmin.IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+    $adminFlag = $amIAdmin.IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')
     if($adminFlag -eq $true){
-        $adminMessage = " with administrator rights on " 
+        $adminMessage = ' with administrator rights on ' 
     }
     else {
-        $adminMessage = " without administrator rights on "
+        $adminMessage = ' without administrator rights on '
     }
 
-    Write-Host "RWMC runs with user " -nonewline; Write-Host $myUser.Name -f Red -nonewline; Write-Host $adminMessage -nonewline; Write-Host $myComputer -f Red -nonewline; Write-Host " computer"
+    Write-Verbose -Message 'RWMC runs with user '; Write-Verbose -Message $myUser.Name; Write-Verbose -Message $adminMessage; Write-Verbose -Message $myComputer; Write-Verbose -Message ' computer'
     return $adminFlag
 }
 
 function Import-SomeModules {
-    $PrerequisitesModules = @("DnsShell","ActiveDirectory")
+    $PrerequisitesModules = @('DnsShell','ActiveDirectory')
     Foreach ($Module in $PrerequisitesModules){
     If (!(Get-module $Module )){
         Import-Module $Module
