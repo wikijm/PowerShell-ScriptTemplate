@@ -148,3 +148,40 @@ function Import-SomeModules {
         Import-Module $Module
     }
 }
+
+function Show-ProgressBar {
+  <#
+    .SYNOPSIS
+    Sho progressbar on a specific action
+
+    .DESCRIPTION
+    Sho progressbar on a specific action, thanks to Write-Progress
+
+    .PARAMETER Array
+    Describe parameter -Array.
+
+    .PARAMETER Item
+    Describe parameter -Item.
+
+    .EXAMPLE
+      Get local services with progressbar
+        $Services = get-service
+        $Services | ForEach-Object {Show-ProgressBar $Services $_ ; write-host $_.name}
+
+      Get content of SoftwareDistribution log with progressbar
+        $Content = Get-Content "$env:windir\SoftwareDistribution\ReportingEvents.log"
+        $Content | ForEach-Object {Show-ProgressBar $Content $_ ; write-host $_.name}
+  #>
+
+
+  param(
+    [Parameter(Mandatory=$true,ValueFromPipeline=$true)][array]$Array,
+    [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [Object]$Item
+  )
+  #Find Index of current item in Array
+  $Index = [array]::IndexOf($array, $item)
+  #Count items in array
+  $ocount = $array.count
+  
+  Write-Progress -activity 'Counter' -Status $([string]$Index + ':'+[string]$ocount) -PercentComplete (($Index/$OCount)*100)
+}
