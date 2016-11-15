@@ -11,11 +11,8 @@ function Set-RegistryKey {
   param
   (
     [Object]$computername,
-
     [Object]$parentKey,
-
     [Object]$nameRegistryKey,
-
     [Object]$valueRegistryKey
   )
 try{    
@@ -26,6 +23,35 @@ try{
     }
     catch {
         $_.Exception
+    }
+}
+
+function Search-LastDrive
+{
+  <#
+    .SYNOPSIS
+    Get last drive letter used on local computer.
+
+    .DESCRIPTION
+    Get last drive letter used on local computer and write result on $LastDriveLetter variable.
+
+    .EXAMPLE
+    Search-LastDrive
+    $LastDriveLetter = "X"
+
+    .NOTES
+    Do $LastDriveLetter=$LastDriveLetter+":" to get "X:" format
+
+  #>
+
+    $UsedLetters = $(Get-PSDrive).name 
+    for($j=90;$j -gt 67;$j--)
+    {
+        $LastDriveLetter=[char]$j
+        if($UsedLetters -notcontains $LastDriveLetter)
+        {
+            return $LastDriveLetter
+}
     }
 }
 
@@ -136,7 +162,7 @@ function Stop-Script () {
     }
 }
 
-Function Stop-ScriptMessageBox () {
+function Stop-ScriptMessageBox () {
  # MessageBox who inform of the end of the process
    Add-Type -AssemblyName System.Windows.Forms
 [Windows.Forms.MessageBox]::Show(
@@ -165,15 +191,20 @@ function Test-LocalAdminRights {
         $adminMessage = ' without administrator rights on '
     }
 
-    Write-Verbose -Message 'RWMC runs with user '; Write-Verbose -Message $myUser.Name; Write-Verbose -Message $adminMessage; Write-Verbose -Message $myComputer; Write-Verbose -Message ' computer'
+    Write-Verbose -Message 'Script runs with user '
+    Write-Verbose -Message $myUser.Name
+    Write-Verbose -Message $adminMessage
+    Write-Verbose -Message $myComputer
+    Write-Verbose -Message ' computer'
     return $adminFlag
 }
 
 function Import-SomeModules {
     $PrerequisitesModules = @('DnsShell','ActiveDirectory')
     Foreach ($Module in $PrerequisitesModules){
-    If (!(Get-module $Module )){
+      If (!(Get-module $Module )){
         Import-Module $Module
+      }
     }
 }
 
