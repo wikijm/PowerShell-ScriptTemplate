@@ -83,7 +83,7 @@ $parentKey = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System'
     }
 }
 
-function script:CreateDirectoryIfNeeded {
+function New-DirectoryIfNeeded {
 	
   [CmdletBinding()]
   param
