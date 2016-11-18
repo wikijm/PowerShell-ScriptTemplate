@@ -14,10 +14,8 @@ function Connect-Office365_PSSession
 	[CmdletBinding()]
 	param
 	(
-		[Parameter(Mandatory = $true)]
 		[string]$Office365_URL = "https://ps.outlook.com/powershell",
-		[Parameter(Mandatory = $true)]
-		$Office365_Credentials
+			$Office365_Credentials
 	)
 	
 	#Imports the installed Azure Active Directory module.
