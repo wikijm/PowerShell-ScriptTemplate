@@ -5,6 +5,35 @@ function script:OnApplicationExit {
 	$script:ExitCode = 0 #Set the exit code for the Packager
                            }
 
+function Test-RegistryValue {
+  <#
+    .SYNOPSIS
+    Check specific values within a key.
+
+    .DESCRIPTION
+    Check specific values within a key, in the same way than Test-Path cmdlet for the key.
+
+    .EXAMPLE
+    Test-RegistryValue -Path 'HKLM:\SOFTWARE\TestSoftware' -Value 'Version'
+    This will return 'True' or 'False'
+#>
+	param (
+		[parameter(Mandatory=$true)]
+ 		[ValidateNotNullOrEmpty()]$Path,
+		[parameter(Mandatory=$true)]
+ 		[ValidateNotNullOrEmpty()]$Value
+	)
+
+	try {
+		Get-ItemProperty -Path $Path | Select-Object -ExpandProperty $Value -ErrorAction Stop | Out-Null
+ 		return $true
+	}
+
+	catch {
+		return $false
+	}
+}
+
 function Set-RegistryKey {
     
   [CmdletBinding()]
