@@ -1,3 +1,4 @@
+Function Connect-Office365_PSSession {
 <#
 	.SYNOPSIS
 		Connect to Office 365 Cloud Services into active PowerShell shell
@@ -9,8 +10,6 @@
 		Capture administrative credential for future connections
 	
 #>
-function Connect-Office365_PSSession
-{
 	[CmdletBinding()]
 	param
 	(
@@ -34,7 +33,7 @@ function Connect-Office365_PSSession
 	Import-PSSession $EXOSession
 }
 
-
+Function Disconnect-Office365_PSSession {
 <#
 	.SYNOPSIS
 		Disconnect PowerShell session to Office 365 Cloud Services
@@ -43,8 +42,6 @@ function Connect-Office365_PSSession
 		Default name is "Exchange Online"
 
 #>
-function Disconnect-Office365_PSSession
-{
 	param
 	(
 		[Parameter(Mandatory = $true)]
