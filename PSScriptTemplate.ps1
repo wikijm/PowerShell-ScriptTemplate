@@ -30,7 +30,7 @@
 
 #>
 
-#---------------------------------------------------------[Initialisations]--------------------------------------------------------
+#region ---------------------------------------------------------[Initialisations]--------------------------------------------------------
 Set-StrictMode -version Latest
 
 #Set Error Action to Silently Continue
@@ -46,9 +46,9 @@ $fullScriptPath = (Resolve-Path -Path $buffer).Path
 $loggingFunctions = "$scriptPath\logging\Logging.ps1"
 $utilsFunctions = "$scriptPath\utilities\Utils.ps1"
 $addsFunctions = "$scriptPath\utilities\ADDS.ps1"
+#endregion
 
-
-#----------------------------------------------------------[Declarations]----------------------------------------------------------
+#region ----------------------------------------------------------[Declarations]----------------------------------------------------------
 
 $scriptName = [System.IO.Path]::GetFileName($scriptFile)
 $scriptVersion = "0.1"
@@ -61,14 +61,14 @@ $logFileName = "Log_" + $launchDate + ".log"
 $logPathName = "$logDirectoryPath\$logFileName"
 
 $global:streamWriter = New-Object System.IO.StreamWriter $logPathName
+#endregion
 
-#-----------------------------------------------------------[Functions]------------------------------------------------------------
-
+#region -----------------------------------------------------------[Functions]------------------------------------------------------------
 . $loggingFunctions
 . $utilsFunctions
+#endregion
 
-#----------------------------------------------------------[Execution]----------------------------------------------------------
-
+#region ----------------------------------------------------------[Execution]----------------------------------------------------------
 Start-Log -scriptName $scriptName -scriptVersion $scriptVersion -streamWriter $global:streamWriter
 cls
 Write-Host "================================================================================================"
@@ -96,3 +96,4 @@ Write-Progress -Activity "Write informations in the log file" -status "Running..
 End-Log -streamWriter $global:streamWriter
 notepad $logPathName
 cls
+#endregion
