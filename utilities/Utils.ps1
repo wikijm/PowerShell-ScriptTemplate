@@ -273,3 +273,14 @@ function Show-ProgressBar {
   
   Write-Progress -activity 'Counter' -Status $([string]$Index + ':'+[string]$ocount) -PercentComplete (($Index/$OCount)*100)
 }
+
+#Hide the powershell console window without hiding the other child windows that it spawns. (I.E. hide the powershell window, but not the Out-Gridview window)
+#https://community.spiceworks.com/topic/1710213-hide-a-powershell-console-window-when-running-a-script
+$Script:showWindowAsync = Add-Type -MemberDefinition @"
+[DllImport("user32.dll")]
+public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+"@ -Name "Win32ShowWindowAsync" -Namespace Win32Functions -PassThru
+function Show-PowershellConsole()
+	{ $null = $showWindowAsync::ShowWindowAsync((Get-Process -Id $pid).MainWindowHandle, 10) }
+function Hide-PowershellConsole()
+	{ $null = $showWindowAsync::ShowWindowAsync((Get-Process -Id $pid).MainWindowHandle, 2) }
