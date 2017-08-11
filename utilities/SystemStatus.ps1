@@ -1,4 +1,14 @@
-#Function Ping-Host
+<#Function Ping-Host
+   Usage:
+    Ping multiple hostnames at a time
+        Ping-Host '127.0.0.1','localhost','10.0.50.5'
+    Ping range ip range at a time
+        Ping-Host (100..150|%{"10.0.50.$_"})
+    Ping a list of hostname in one go    
+        Ping-Host -Hosts (gc C:\temp\computers.txt)
+    Ping hostnames queried from Active Directory
+        Ping-Host -Hosts ((Get-ADComputer -Filter {name -like 'LAPTOP*'}).name
+#>
 Function Ping-Host
 {
     #Parameter Definition
