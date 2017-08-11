@@ -7,7 +7,7 @@
     Ping a list of hostname in one go    
         Ping-Host -Hosts (gc C:\temp\computers.txt)
     Ping hostnames queried from Active Directory
-        Ping-Host -Hosts ((Get-ADComputer -Filter {name -like 'LAPTOP*'}).name
+        Ping-Host -Hosts ((Get-ADComputer -Filter {name -like 'LAPTOP*'}).name)
 #>
 Function Ping-Host
 {
