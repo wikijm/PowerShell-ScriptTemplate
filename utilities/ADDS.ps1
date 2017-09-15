@@ -209,7 +209,32 @@ End
 
 }# End Function Get-LastLogon
 
+function Export-ADProxyAddresses {
+<#
+	.SYNOPSIS
+		Export on .csv file all ProxyAddress values to User AD objects
 
+	.DESCRIPTION
+		Export on .csv file all ProxyAddress values to User AD objects
+
+	.PARAMETER  CSVOutputFile
+		.csv file that will contain results.
+
+	.PARAMETER  CSVEncoding
+		UTF8 must be choose to handle with special character
+
+	.EXAMPLE
+		PS C:\> Export-ADProxyAddresses -CSVOutputFile $CSVOutputFile -CSVEncoding UTF8
+		This example shows how to call the Export-ADProxyAddresses function with named parameters.
+
+#>
+	param (
+		[Parameter(Mandatory = $true)][string]$CSVEncoding = 'UTF8',
+		[Parameter(Mandatory = $true)][string]$CSVOutputFile
+	)
+	
+	Get-ADUser -Filter * -Properties proxyaddresses | Select-Object Name, @{ L = "ProxyAddresses"; E = { $_.ProxyAddresses -join ";" } } | Export-Csv -Encoding $CSVEncoding -NoTypeInformation -Path $CSVOutput
+}
 
 function Call-AD_OU_select_pff {
     # Usage :
