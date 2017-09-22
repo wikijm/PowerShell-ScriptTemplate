@@ -278,27 +278,18 @@ if (!(Test-Path -Path $directory -PathType 'Container')) {
 	}
 }
 
-function Select-FolderDialog
-{
-    [CmdletBinding()]
-    param ([string]$InitialDirectory='MyComputer')
-    Add-Type -AssemblyName System.Windows.Forms
-    $openFolderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
-    $openFolderDialog.ShowNewFolderButton = $true
-    $openFolderDialog.RootFolder = $InitialDirectory
-    $openFolderDialog.ShowDialog()
-    return $openFolderDialog.SelectedPath
-
-	If (!$($openFolderDialog.SelectedPath)) {
-	    Write-Error 'Canceled operation'
+function Select-FolderDialog($SelectFolderDialogMessage = 'Select a folder', $SelectFolderDialogPath = 0) {
+	$SelectFolderDialogObject = New-Object -comObject Shell.Application
+	$SelectFolderDialogFolder = $SelectFolderDialogObject.BrowseForFolder(0, $SelectFolderDialogMessage, 0, $SelectFolderDialogPath)
+	If (!$SelectFolderDialogFolder.self.Path) {
+		Write-Error 'Canceled operation'
 		[Windows.Forms.MessageBox]::Show('Script is not able to continue. Operation stopped.', 'Operation canceled', 0, [Windows.Forms.MessageBoxIcon]::Error)
 		Stop-TranscriptOnLog
 		Exit
 	}
-    Else {
-        $SelectedFolder = $openFolderDialog.SelectedPath
-    }
-	
+	Else {
+		$SelectedFolder = $SelectFolderDialogFolder.self.Path
+	}
 }
 
 function Select-FileDialog
