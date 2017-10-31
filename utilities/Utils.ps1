@@ -866,6 +866,40 @@ function Import-SomeModules {
     }
 }
 
+function MonitorJobs {
+    #Sources: https://gallery.technet.microsoft.com/scriptcenter/Monitor-and-display-808ce573
+    $JobsLaunch = Get-Date
+    Do { 
+        Clear-Host
+        $myjobs = get-job  
+        $myjobs | Out-File $env:TEMP\scrapjobs.txt 
+        Get-Content $env:TEMP\scrapjobs.txt 
+        $jobscount = $myjobs.Count 
+        "$jobscount jobs running" 
+        $done = 0 
+
+        ForEach ($job in $myjobs) {
+            $mystate = $job.State 
+            If ($mystate -eq "Completed") {$done = $done + 1}
+        } 
+        "$done jobs done"
+        " 
+        " 
+        $currentTime = Get-Date
+        "Jobs started at $JobsLaunch" 
+        "Current time $currentTime  " 
+ 
+        $timecount = $JobsLaunch - $currentTime 
+        $timecount = $timecount.TotalMinutes 
+        "Elapsed time in minutes $timecount" 
+        Start-Sleep 5 
+        Clear-Host 
+    }
+    
+    While ( $done -lt $jobscount ) 
+        Get-Job | Remove-Job 
+}
+
 function Show-ProgressBar {
   <#
     .SYNOPSIS
