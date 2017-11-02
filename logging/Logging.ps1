@@ -19,7 +19,21 @@ Function Write-Log {
         Write-Host $InfoMessage -ForegroundColor Cyan
     }
 }
- 
+
+Function Write-Success {
+    [CmdletBinding()]  
+    Param ([Parameter(Mandatory=$true)][string]$streamWriter, [Parameter(Mandatory=$true)][string]$successCaught, [Parameter(Mandatory=$true)][boolean]$forceExit)  
+    Process{
+        $SuccessMessage = "$([DateTime]::Now) [SUCCESS] $successCaught"
+        $global:streamWriter.WriteLine($SuccessMessage)
+        Write-Host $SuccessMessage -ForegroundColor Green      
+        if ($forceExit -eq $true){
+            End-Log -streamWriter $global:streamWriter
+            break;
+        }
+    }
+}
+
 Function Write-Error {
     [CmdletBinding()]  
     Param ([Parameter(Mandatory=$true)][string]$streamWriter, [Parameter(Mandatory=$true)][string]$errorCaught, [Parameter(Mandatory=$true)][boolean]$forceExit)  
