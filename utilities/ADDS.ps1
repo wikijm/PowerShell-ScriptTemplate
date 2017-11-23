@@ -1,5 +1,4 @@
-function Get-LastLogon
-{
+function Get-LastLogon {
 <#
 
 .SYNOPSIS
@@ -70,144 +69,198 @@ function Get-LastLogon
 	         Cleaned Up Code, defined fewer variables when creating PSObjects
 	ToDo:    Clean up the UserSID Translation, to continue even if the SID is local
 #>
-
-[CmdletBinding()]
-param(
-	[Parameter(Position=0,ValueFromPipeline=$true)]
-	[Alias("CN","Computer")]
-	[String[]]$ComputerName="$env:COMPUTERNAME",
-	[String]$FilterSID,
-	[String]$WQLFilter="NOT SID = 'S-1-5-18' AND NOT SID = 'S-1-5-19' AND NOT SID = 'S-1-5-20'"
+	
+	[CmdletBinding()]
+	param (
+		[Parameter(Position = 0, ValueFromPipeline = $true)]
+		[Alias("CN", "Computer")]
+		[String[]]$ComputerName = "$env:COMPUTERNAME",
+		[String]$FilterSID,
+		[String]$WQLFilter = "NOT SID = 'S-1-5-18' AND NOT SID = 'S-1-5-19' AND NOT SID = 'S-1-5-20'"
 	)
-
-Begin
+	
+	Begin
 	{
 		#Adjusting ErrorActionPreference to stop on all errors
 		$TempErrAct = $ErrorActionPreference
 		$ErrorActionPreference = "Stop"
 		#Exclude Local System, Local Service & Network Service
 	}#End Begin Script Block
-
-Process
+	
+	Process
 	{
 		Foreach ($Computer in $ComputerName)
+		{
+			$Computer = $Computer.ToUpper().Trim()
+			Try
 			{
-				$Computer = $Computer.ToUpper().Trim()
-				Try
+				#Querying Windows version to determine how to proceed.
+				$Win32OS = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $Computer
+				$Build = $Win32OS.BuildNumber
+				
+				#Win32_UserProfile exist on Windows Vista and above
+				If ($Build -ge 6001)
+				{
+					If ($FilterSID)
 					{
-						#Querying Windows version to determine how to proceed.
-						$Win32OS = Get-WmiObject -Class Win32_OperatingSystem -ComputerName $Computer
-						$Build = $Win32OS.BuildNumber
-						
-						#Win32_UserProfile exist on Windows Vista and above
-						If ($Build -ge 6001)
-							{
-								If ($FilterSID)
-									{
-										$WQLFilter = $WQLFilter + " AND NOT SID = `'$FilterSID`'"
-									}#End If ($FilterSID)
-								$Win32User = Get-WmiObject -Class Win32_UserProfile -Filter $WQLFilter -ComputerName $Computer
-								$LastUser = $Win32User | Sort-Object -Property LastUseTime -Descending | Select-Object -First 1
-								$Loaded = $LastUser.Loaded
-								$Script:Time = ([WMI]'').ConvertToDateTime($LastUser.LastUseTime)
-								
-								#Convert SID to Account for friendly display
-								$Script:UserSID = New-Object System.Security.Principal.SecurityIdentifier($LastUser.SID)
-								$User = $Script:UserSID.Translate([System.Security.Principal.NTAccount])
-							}#End If ($Build -ge 6001)
-							
-						If ($Build -le 6000)
-							{
-								If ($Build -eq 2195)
-									{
-										$SysDrv = $Win32OS.SystemDirectory.ToCharArray()[0] + ":"
-									}#End If ($Build -eq 2195)
-								Else
-									{
-										$SysDrv = $Win32OS.SystemDrive
-									}#End Else
-								$SysDrv = $SysDrv.Replace(":","$")
-								$Script:ProfLoc = "\\$Computer\$SysDrv\Documents and Settings"
-								$Profiles = Get-ChildItem -Path $Script:ProfLoc
-								$Script:NTUserDatLog = $Profiles | ForEach-Object -Process {$_.GetFiles("ntuser.dat.LOG")}
-								
-								#Function to grab last profile data, used for allowing -FilterSID to function properly.
-								function GetLastProfData ($InstanceNumber)
-									{
-										$Script:LastProf = ($Script:NTUserDatLog | Sort-Object -Property LastWriteTime -Descending)[$InstanceNumber]							
-										$Script:UserName = $Script:LastProf.DirectoryName.Replace("$Script:ProfLoc","").Trim("\").ToUpper()
-										$Script:Time = $Script:LastProf.LastAccessTime
-										
-										#Getting the SID of the user from the file ACE to compare
-										$Script:Sddl = $Script:LastProf.GetAccessControl().Sddl
-										$Script:Sddl = $Script:Sddl.split("(") | Select-String -Pattern "[0-9]\)$" | Select-Object -First 1
-										#Formatting SID, assuming the 6th entry will be the users SID.
-										$Script:Sddl = $Script:Sddl.ToString().Split(";")[5].Trim(")")
-										
-										#Convert Account to SID to detect if profile is loaded via the remote registry
-										$Script:TranSID = New-Object System.Security.Principal.NTAccount($Script:UserName)
-										$Script:UserSID = $Script:TranSID.Translate([System.Security.Principal.SecurityIdentifier])
-									}#End function GetLastProfData
-								GetLastProfData -InstanceNumber 0
-								
-								#If the FilterSID equals the UserSID, rerun GetLastProfData and select the next instance
-								If ($Script:UserSID -eq $FilterSID)
-									{
-										GetLastProfData -InstanceNumber 1
-									}#End If ($Script:UserSID -eq $FilterSID)
-								
-								#If the detected SID via Sddl matches the UserSID, then connect to the registry to detect currently loggedon.
-								If ($Script:Sddl -eq $Script:UserSID)
-									{
-										$Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey([Microsoft.Win32.RegistryHive]"Users",$Computer)
-										$Loaded = $Reg.GetSubKeyNames() -contains $Script:UserSID.Value
-										#Convert SID to Account for friendly display
-										$Script:UserSID = New-Object System.Security.Principal.SecurityIdentifier($Script:UserSID)
-										$User = $Script:UserSID.Translate([System.Security.Principal.NTAccount])
-									}#End If ($Script:Sddl -eq $Script:UserSID)
-								Else
-									{
-										$User = $Script:UserName
-										$Loaded = "Unknown"
-									}#End Else
-
-							}#End If ($Build -le 6000)
-						
-						#Creating Custom PSObject For Output
-						New-Object -TypeName PSObject -Property @{
-							Computer=$Computer
-							User=$User
-							SID=$Script:UserSID
-							Time=$Script:Time
-							CurrentlyLoggedOn=$Loaded
-							} | Select-Object Computer, User, SID, Time, CurrentlyLoggedOn
-							
-					}#End Try
+						$WQLFilter = $WQLFilter + " AND NOT SID = `'$FilterSID`'"
+					}#End If ($FilterSID)
+					$Win32User = Get-WmiObject -Class Win32_UserProfile -Filter $WQLFilter -ComputerName $Computer
+					$LastUser = $Win32User | Sort-Object -Property LastUseTime -Descending | Select-Object -First 1
+					$Loaded = $LastUser.Loaded
+					$Script:Time = ([WMI]'').ConvertToDateTime($LastUser.LastUseTime)
 					
-				Catch
+					#Convert SID to Account for friendly display
+					$Script:UserSID = New-Object System.Security.Principal.SecurityIdentifier($LastUser.SID)
+					$User = $Script:UserSID.Translate([System.Security.Principal.NTAccount])
+				}#End If ($Build -ge 6001)
+				
+				If ($Build -le 6000)
+				{
+					If ($Build -eq 2195)
 					{
-						If ($_.Exception.Message -Like "*Some or all identity references could not be translated*")
-							{
-								Write-Warning "Unable to Translate $Script:UserSID, try filtering the SID `nby using the -FilterSID parameter."	
-								Write-Warning "It may be that $Script:UserSID is local to $Computer, Unable to translate remote SID"
-							}
-						Else
-							{
-								Write-Warning $_
-							}
-					}#End Catch
+						$SysDrv = $Win32OS.SystemDirectory.ToCharArray()[0] + ":"
+					}#End If ($Build -eq 2195)
+					Else
+					{
+						$SysDrv = $Win32OS.SystemDrive
+					}#End Else
+					$SysDrv = $SysDrv.Replace(":", "$")
+					$Script:ProfLoc = "\\$Computer\$SysDrv\Documents and Settings"
+					$Profiles = Get-ChildItem -Path $Script:ProfLoc
+					$Script:NTUserDatLog = $Profiles | ForEach-Object -Process { $_.GetFiles("ntuser.dat.LOG") }
 					
-			}#End Foreach ($Computer in $ComputerName)
+					#Function to grab last profile data, used for allowing -FilterSID to function properly.
+					function GetLastProfData ($InstanceNumber)
+					{
+						$Script:LastProf = ($Script:NTUserDatLog | Sort-Object -Property LastWriteTime -Descending)[$InstanceNumber]
+						$Script:UserName = $Script:LastProf.DirectoryName.Replace("$Script:ProfLoc", "").Trim("\").ToUpper()
+						$Script:Time = $Script:LastProf.LastAccessTime
+						
+						#Getting the SID of the user from the file ACE to compare
+						$Script:Sddl = $Script:LastProf.GetAccessControl().Sddl
+						$Script:Sddl = $Script:Sddl.split("(") | Select-String -Pattern "[0-9]\)$" | Select-Object -First 1
+						#Formatting SID, assuming the 6th entry will be the users SID.
+						$Script:Sddl = $Script:Sddl.ToString().Split(";")[5].Trim(")")
+						
+						#Convert Account to SID to detect if profile is loaded via the remote registry
+						$Script:TranSID = New-Object System.Security.Principal.NTAccount($Script:UserName)
+						$Script:UserSID = $Script:TranSID.Translate([System.Security.Principal.SecurityIdentifier])
+					}#End function GetLastProfData
+					GetLastProfData -InstanceNumber 0
+					
+					#If the FilterSID equals the UserSID, rerun GetLastProfData and select the next instance
+					If ($Script:UserSID -eq $FilterSID)
+					{
+						GetLastProfData -InstanceNumber 1
+					}#End If ($Script:UserSID -eq $FilterSID)
+					
+					#If the detected SID via Sddl matches the UserSID, then connect to the registry to detect currently loggedon.
+					If ($Script:Sddl -eq $Script:UserSID)
+					{
+						$Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey([Microsoft.Win32.RegistryHive]"Users", $Computer)
+						$Loaded = $Reg.GetSubKeyNames() -contains $Script:UserSID.Value
+						#Convert SID to Account for friendly display
+						$Script:UserSID = New-Object System.Security.Principal.SecurityIdentifier($Script:UserSID)
+						$User = $Script:UserSID.Translate([System.Security.Principal.NTAccount])
+					}#End If ($Script:Sddl -eq $Script:UserSID)
+					Else
+					{
+						$User = $Script:UserName
+						$Loaded = "Unknown"
+					}#End Else
+					
+				}#End If ($Build -le 6000)
+				
+				#Creating Custom PSObject For Output
+				New-Object -TypeName PSObject -Property @{
+					Computer = $Computer
+					User = $User
+					SID = $Script:UserSID
+					Time = $Script:Time
+					CurrentlyLoggedOn = $Loaded
+				} | Select-Object Computer, User, SID, Time, CurrentlyLoggedOn
+				
+			}#End Try
 			
+			Catch
+			{
+				If ($_.Exception.Message -Like "*Some or all identity references could not be translated*")
+				{
+					Write-Warning "Unable to Translate $Script:UserSID, try filtering the SID `nby using the -FilterSID parameter."
+					Write-Warning "It may be that $Script:UserSID is local to $Computer, Unable to translate remote SID"
+				}
+				Else
+				{
+					Write-Warning $_
+				}
+			}#End Catch
+			
+		}#End Foreach ($Computer in $ComputerName)
+		
 	}#End Process
 	
-End
+	End
 	{
 		#Resetting ErrorActionPref
 		$ErrorActionPreference = $TempErrAct
 	}#End End
+# End Function Get-LastLogon
+}
 
-}# End Function Get-LastLogon
+function Test-IsGroupMember {
+<#
+	.SYNOPSIS
+		Tell for a list of usernames or groups which users are members of which groups,
+		including through nested group membership.
+
+	.NOTES
+		This function requires the ActiveDirectory PowerShell module and the function is named Test-IsGroupMember.
+		It takes two parameters called Usernames and Groups. Both are “object” types so they could be an array or a string.
+		It’s expected that the values in Usernames and Groups will be SamAccountNames.
+		For all of the groups you pass the function, it determines the recursive group members and extracts the SamAccountName
+		attribute of the members returned. Then to the output stream, we write that the currently evaluated group has a number
+		of members. We check to see if any of the usernames in the Usernames parameter are contained within the	members of
+		the group. If the user is present in both arrays, we report back.
+	
+	.LINK
+		http://www.workingsysadmin.com/quick-tip-which-of-these-groups-are-these-users-members-of/
+
+	.PARAMETER Usernames
+
+	.PARAMETER Groups
+
+	.EXAMPLE
+		#Take an array of users and an array of groups to see which users are in which groups
+		PS C:\> Test-IsGroupMember @('user1','user2','user3','ThmsRynr') @('Group1','Group2','Group3')
+ 
+		#See if ThmsRynr is a (nested) member of SomeGroup
+		PS C:\> Test-IsGroupMember ThmsRynr SomeGroup
+ 
+		#See if all the members of InterestingGroup are members of any group whose name matches *Keyword*
+		PS C:\> Test-IsGroupMember -Usernames (Get-ADGroupMember InterestingGroup).SamAccountName -Groups (Get-ADGroup -filter "Name -like '*Keyword*'").SamAccountName
+
+#>
+	param (
+		[Parameter(Mandatory = $True,
+				   Position = 1,
+				   ValueFromPipeline = $True)]
+		[Object]$Usernames,
+		[Parameter(Mandatory = $True,
+				   Position = 2,
+				   ValueFromPipeline = $True)]
+		[Object]$Groups
+	)
+	
+	foreach ($strGroup in $Groups)
+	{
+		$arrMembers = @()
+		$arrMembers = (Get-ADGroupMember -Identity $strGroup -Recursive).SamAccountName
+		Write-Output "$strGroup has $($arrMembers.count) members"
+		$Usernames | % { if ($arrMembers -contains $_) { write-host " * $_ is a member of $strGroup" } }
+		Write-Output ''
+	}
+}
 
 function Export-ADProxyAddresses {
 <#
@@ -237,20 +290,22 @@ function Export-ADProxyAddresses {
 }
 
 function Call-AD_OU_select_pff {
-    # Usage :
-    #        Call-AD_OU_select_pff | Out-Null
-    
-    Import-Module activedirectory
-        if (Get-Module -ListAvailable -Name activedirectory) {
-            Import-Module activedirectory
-            }
-        else {
-            Write-Host "Module activedirectory does not exist, importing..."
-            Import-Module ServerManager 
-            Add-WindowsFeature RSAT-AD-PowerShell        
-            }
-
-    #----------------------------------------------
+	# Usage :
+	#        Call-AD_OU_select_pff | Out-Null
+	
+	Import-Module activedirectory
+	if (Get-Module -ListAvailable -Name activedirectory)
+	{
+		Import-Module activedirectory
+	}
+	else
+	{
+		Write-Host "Module activedirectory does not exist, importing..."
+		Import-Module ServerManager
+		Add-WindowsFeature RSAT-AD-PowerShell
+	}
+	
+	#----------------------------------------------
 	#region Import the Assemblies
 	#----------------------------------------------
 	[void][reflection.assembly]::Load("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")
@@ -263,7 +318,7 @@ function Call-AD_OU_select_pff {
 	[void][reflection.assembly]::Load("System.Core, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")
 	[void][reflection.assembly]::Load("System.ServiceProcess, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a")
 	#endregion Import Assemblies
-
+	
 	#----------------------------------------------
 	#region Generated Form Objects
 	#----------------------------------------------
@@ -275,88 +330,98 @@ function Call-AD_OU_select_pff {
 	$ErrorProviderOU = New-Object 'System.Windows.Forms.ErrorProvider'
 	$InitialFormWindowState = New-Object 'System.Windows.Forms.FormWindowState'
 	#endregion Generated Form Objects
-
+	
 	#----------------------------------------------
 	# User Generated Script
 	#----------------------------------------------
-		
-	function Add-Node { 
-	        param ( 
-	            $selectedNode, 
-	            $dname,
-	            $name,
-	            $ou
-	        )
-	        $newNode = new-object System.Windows.Forms.TreeNode  
-		    $newNode.Name = $dname 
-		    $newNode.Text = $name 
-	        IF($ou -eq $false) {
-	            $newnode.ImageIndex = 1
-				$newNode.SelectedImageIndex = 1
-	        }
-	        $selectedNode.Nodes.Add($newNode) | Out-Null 
-	        If($dname -eq $strDomainDN){
-				$newNode.ImageIndex = 2
-				$newNode.SelectedImageIndex = 2
-	        }
-	        return $newNode 
-	} 
 	
-	function Get-NextLevel {
-	    param (
-	        $selectedNode,
-	        $dn,
-	        $name,
-	        $OU
-	   )
-	   
-	    $OUs = Get-ADObject -Filter 'ObjectClass -eq "organizationalUnit" -or ObjectClass -eq "container"' -SearchScope OneLevel -SearchBase $dn
-	    
-	    If ($OUs -eq $null) {
-	        $node = Add-Node $selectedNode $dn $name $OU
-	    } Else {
-	        $node = Add-Node $selectedNode $dn $name $OU
-	        
-	        $OUs | % {
-	            If ($_.ObjectClass -eq "organizationalUnit") {
-	                $OU = $true
-	            }
-	            else {
-	                $OU = $false
-	            }
-	            Get-NextLevel $node $_.distinguishedName $_.name $OU
-	        }
-	    }
+	function Add-Node
+	{
+		param (
+			$selectedNode,
+			$dname,
+			$name,
+			$ou
+		)
+		$newNode = new-object System.Windows.Forms.TreeNode
+		$newNode.Name = $dname
+		$newNode.Text = $name
+		IF ($ou -eq $false)
+		{
+			$newnode.ImageIndex = 1
+			$newNode.SelectedImageIndex = 1
+		}
+		$selectedNode.Nodes.Add($newNode) | Out-Null
+		If ($dname -eq $strDomainDN)
+		{
+			$newNode.ImageIndex = 2
+			$newNode.SelectedImageIndex = 2
+		}
+		return $newNode
 	}
 	
-	function Build-TreeView { 
-	    if ($treeNodes)  
-	    {  
-	          $treeview1.Nodes.remove($treeNodes) 
-	        $formChooseOU.Refresh() 
-	    } 
-	    
-	    $treeNodes = $treeview1.Nodes[0]
-	    	    
-		#Generate Module nodes 
+	function Get-NextLevel
+	{
+		param (
+			$selectedNode,
+			$dn,
+			$name,
+			$OU
+		)
+		
+		$OUs = Get-ADObject -Filter 'ObjectClass -eq "organizationalUnit" -or ObjectClass -eq "container"' -SearchScope OneLevel -SearchBase $dn
+		
+		If ($OUs -eq $null)
+		{
+			$node = Add-Node $selectedNode $dn $name $OU
+		}
+		Else
+		{
+			$node = Add-Node $selectedNode $dn $name $OU
+			
+			$OUs | % {
+				If ($_.ObjectClass -eq "organizationalUnit")
+				{
+					$OU = $true
+				}
+				else
+				{
+					$OU = $false
+				}
+				Get-NextLevel $node $_.distinguishedName $_.name $OU
+			}
+		}
+	}
+	
+	function Build-TreeView
+	{
+		if ($treeNodes)
+		{
+			$treeview1.Nodes.remove($treeNodes)
+			$formChooseOU.Refresh()
+		}
+		
+		$treeNodes = $treeview1.Nodes[0]
+		
+		#Generate Module nodes
 		Get-NextLevel $treeNodes $strDomainDN $strDNSDomain
 		
-		$treeNodes.Expand() 
-	    $treeNodes.FirstNode.Expand()
-	} 
+		$treeNodes.Expand()
+		$treeNodes.FirstNode.Expand()
+	}
 	
-	$treeView1.add_AfterSelect({ 
-		    $script:SelectedOU = $this.SelectedNode
-		})
+	$treeView1.add_AfterSelect({
+		$script:SelectedOU = $this.SelectedNode
+	})
 	
-	$FormEvent_Load={
+	$FormEvent_Load = {
 		$objIPProperties = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties()
-	    $strDNSDomain = $objIPProperties.DomainName.toLower()
-	    $strDomainDN = $strDNSDomain.toString().split('.'); foreach ($strVal in $strDomainDN) {$strTemp += "dc=$strVal,"}; $strDomainDN = $strTemp.TrimEnd(",").toLower()
+		$strDNSDomain = $objIPProperties.DomainName.toLower()
+		$strDomainDN = $strDNSDomain.toString().split('.'); foreach ($strVal in $strDomainDN) { $strTemp += "dc=$strVal," }; $strDomainDN = $strTemp.TrimEnd(",").toLower()
 		Build-TreeView
 	}
 	
-	$buttonOK_Click={
+	$buttonOK_Click = {
 		$script:objSelectedOU = Get-ADObject -Identity $SelectedOU.name
 		
 	}
@@ -366,13 +431,13 @@ function Call-AD_OU_select_pff {
 	#region Generated Events
 	#----------------------------------------------
 	
-	$Form_StateCorrection_Load=
+	$Form_StateCorrection_Load =
 	{
 		#Correct the initial state of the form to prevent the .Net maximized form issue
 		$formChooseOU.WindowState = $InitialFormWindowState
 	}
 	
-	$Form_Cleanup_FormClosed=
+	$Form_Cleanup_FormClosed =
 	{
 		#Remove all event handlers from the controls
 		try
@@ -387,7 +452,7 @@ function Call-AD_OU_select_pff {
 		{ }
 	}
 	#endregion Generated Events
-
+	
 	#----------------------------------------------
 	#region Generated Form Code
 	#----------------------------------------------
@@ -704,7 +769,7 @@ AADAAwAAwAMAAMADAADAAwAAwAMAAP//AAA=')
 	#
 	$Formatter_binaryFomatter = New-Object System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
 	#region Binary Data
-	$System_IO_MemoryStream = New-Object System.IO.MemoryStream (,[byte[]][System.Convert]::FromBase64String('
+	$System_IO_MemoryStream = New-Object System.IO.MemoryStream (, [byte[]][System.Convert]::FromBase64String('
 AAEAAAD/////AQAAAAAAAAAMAgAAAFdTeXN0ZW0uV2luZG93cy5Gb3JtcywgVmVyc2lvbj00LjAu
 MC4wLCBDdWx0dXJlPW5ldXRyYWwsIFB1YmxpY0tleVRva2VuPWI3N2E1YzU2MTkzNGUwODkFAQAA
 ACZTeXN0ZW0uV2luZG93cy5Gb3Jtcy5JbWFnZUxpc3RTdHJlYW1lcgEAAAAERGF0YQcCAgAAAAkD
@@ -766,9 +831,9 @@ A///AAIACw=='))
 	#
 	$ErrorProviderOU.ContainerControl = $formChooseOU
 	#endregion Generated Form Code
-
+	
 	#----------------------------------------------
-
+	
 	#Save the initial state of the form
 	$InitialFormWindowState = $formChooseOU.WindowState
 	#Init the OnLoad event to correct the initial state of the form
@@ -777,6 +842,5 @@ A///AAIACw=='))
 	$formChooseOU.add_FormClosed($Form_Cleanup_FormClosed)
 	#Show the Form
 	return $formChooseOU.ShowDialog()
-
+	
 }
-
