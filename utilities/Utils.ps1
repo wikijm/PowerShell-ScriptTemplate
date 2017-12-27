@@ -160,6 +160,297 @@ function Show-MessageBox {
 	Return $Answer
 }
 
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+	
+function ConvertFrom-IniFile {
+<#
+.Synopsis
+Convert an INI file to an object
+.Description
+Use this command to convert a legacy INI file into a PowerShell custom object. Each INI section will become a property name. Then each section setting will become a nested object. Blank lines and comments starting with ; will be ignored. 
+ 
+It is assumed that your ini file follows a typical layout like this:
+ 
+;This is a sample ini
+[General]
+Action = Start
+Directory = c:\work
+ID = 123ABC
+ 
+ ;this is another comment
+[Application]
+Name = foo.exe
+Version = 1.0
+ 
+[User]
+Name = Jeff
+Company = Globomantics
+ 
+.Parameter Path
+The path to the INI file.
+.Example
+PS C:\> $sample = ConvertFrom-IniFile c:\scripts\sample.ini
+PS C:\> $sample
+ 
+General                           Application                      User                            
+-------                           -----------                      ----                            
+@{Directory=c:\work; ID=123ABC... @{Version=1.0; Name=foo.exe}     @{Name=Jeff; Company=Globoman...
+ 
+PS C:\> $sample.general.action
+Start
+ 
+In this example, a sample ini file is converted to an object with each section a separate property.
+.Example
+PS C:\> ConvertFrom-IniFile c:\windows\system.ini | export-clixml c:\work\system.ini
+ 
+Convert the System.ini file and export results to an XML format.
+.Notes
+Last Updated: June 5, 2015
+Version     : 1.0
+ 
+Learn more about PowerShell:
+http://jdhitsolutions.com/blog/essential-powershell-resources/
+ 
+  ****************************************************************
+  * DO NOT USE IN A PRODUCTION ENVIRONMENT UNTIL YOU HAVE TESTED *
+  * THOROUGHLY IN A LAB ENVIRONMENT. USE AT YOUR OWN RISK.  IF   *
+  * YOU DO NOT UNDERSTAND WHAT THIS SCRIPT DOES OR HOW IT WORKS, *
+  * DO NOT USE IT OUTSIDE OF A SECURE, TEST SETTING.             *
+  ****************************************************************
+.Link
+Get-Content
+.Inputs
+[string]
+.Outputs
+[pscustomobject]
+#>
+ 
+[cmdletbinding()]
+Param(
+[Parameter(Position=0,Mandatory,HelpMessage="Enter the path to an INI file",
+ValueFromPipeline, ValueFromPipelineByPropertyName)]
+[Alias("fullname","pspath")]
+[ValidateScript({
+if (Test-Path $_) {
+   $True
+}
+else {
+  Throw "Cannot validate path $_"
+}
+})]     
+[string]$Path
+)
+ 
+ 
+Begin {
+    Write-Verbose "Starting $($MyInvocation.Mycommand)"  
+} #begin
+ 
+Process {
+    Write-Verbose "Getting content from $(Resolve-Path $path)"
+    #strip out comments that start with ; and blank lines
+    $all = Get-content -Path $path | Where {$_ -notmatch "^(\s+)?;|^\s*$"}
+ 
+    $obj = New-Object -TypeName PSObject -Property @{}
+    $hash = [ordered]@{}
+ 
+    foreach ($line in $all) {
+ 
+        Write-Verbose "Processing $line"
+ 
+        if ($line -match "^\[.*\]$" -AND $hash.count -gt 0) {
+            #has a hash count and is the next setting
+            #add the section as a property
+            write-Verbose "Creating section $section"
+            Write-verbose ([pscustomobject]$hash | out-string)
+            $obj | Add-Member -MemberType Noteproperty -Name $Section -Value $([pscustomobject]$Hash) -Force
+            #reset hash
+            Write-Verbose "Resetting hashtable"
+            $hash=[ordered]@{}
+            #define the next section
+            $section = $line -replace "\[|\]",""
+            Write-Verbose "Next section $section"
+        }
+        elseif ($line -match "^\[.*\]$") {
+            #Get section name. This will only run for the first section heading
+            $section = $line -replace "\[|\]",""
+            Write-Verbose "New section $section"
+        }
+        elseif ($line -match "=") {
+            #parse data
+            $data = $line.split("=").trim()
+            $hash.add($data[0],$data[1])    
+        }
+        else {
+            #this should probably never happen
+            Write-Warning "Unexpected line $line"
+        }
+ 
+    } #foreach
+ 
+    #get last section
+    If ($hash.count -gt 0) {
+      Write-Verbose "Creating final section $section"
+      Write-Verbose ([pscustomobject]$hash | Out-String)
+     #add the section as a property
+     $obj | Add-Member -MemberType Noteproperty -Name $Section -Value $([pscustomobject]$Hash) -Force
+    }
+ 
+    #write the result to the pipeline
+    $obj
+} #process
+ 
+End {
+    Write-Verbose "Ending $($MyInvocation.Mycommand)"
+} #end
+ 
+} #end function
+
+
 function Test-RegistryValue {
   <#
     .SYNOPSIS
